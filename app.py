@@ -408,7 +408,7 @@ def webhook():
             lang = user_states[from_number]['language']
             crop_name = msg_body.strip()
             user_states[from_number]['temp_produce'] = {'name': crop_name}
-            send_whatsapp_message(from_number, "🔍 Checking market prices. Please wait...")
+            send_whatsapp_message(from_number, f"🔍 Checking market prices for {crop_name}. Please wait...")
 
             try:
                 predicted_price = scrape_agmarknet_prices("Kerala", crop_name)  # You can use user's state if available
