@@ -138,17 +138,13 @@ AGMARKNET_STATES = {
 
 def sanitize_commodity_name(driver, input_commodity):
     try:
-        # Get all available options from commodity dropdown
         dropdown = Select(driver.find_element(By.ID, 'ddlCommodity'))
         commodity_options = [option.text.strip() for option in dropdown.options if option.text.strip() and option.text != "--Select--"]
-
-        # Fuzzy match
         match = get_close_matches(input_commodity, commodity_options, n=1, cutoff=0.6)
         return match[0] if match else None
     except Exception as e:
         print(f"❌ Error sanitizing commodity name: {e}")
         return None
-
 
 def scrape_agmarknet_prices(state, commodity):
     options = webdriver.ChromeOptions()
@@ -160,7 +156,7 @@ def scrape_agmarknet_prices(state, commodity):
     try:
         driver.get("https://agmarknet.gov.in/SearchCmmMkt.aspx")
 
-        # Close popup if it appears
+        # Close popup if any
         try:
             popup = driver.find_element(By.CLASS_NAME, 'popup-onload')
             close_btn = popup.find_element(By.CLASS_NAME, 'close')
@@ -168,7 +164,7 @@ def scrape_agmarknet_prices(state, commodity):
         except NoSuchElementException:
             pass
 
-        # Sanitize commodity name
+        # Sanitize commodity
         sanitized_commodity = sanitize_commodity_name(driver, commodity)
         if not sanitized_commodity:
             print(f"⚠️ No close match found for commodity: '{commodity}'")
@@ -176,51 +172,67 @@ def scrape_agmarknet_prices(state, commodity):
 
         print(f"✅ Using commodity: {sanitized_commodity}")
 
-        # Set inputs
+        # Select inputs
         Select(driver.find_element(By.ID, 'ddlCommodity')).select_by_visible_text(sanitized_commodity)
         Select(driver.find_element(By.ID, 'ddlState')).select_by_visible_text(state)
 
-        date_input = driver.find_element(By.ID, "txtDate")
-        date_input.clear()
-        date_input.send_keys((datetime.now() - timedelta(days=7)).strftime('%d-%b-%Y'))
+        # Wait for markets to load
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'ddlMarket')))
+        market_dropdown = Select(driver.find_element(By.ID, 'ddlMarket'))
+        valid_markets = [opt.text for opt in market_dropdown.options if "--Select--" not in opt.text]
+        if not valid_markets:
+            print("⚠️ No valid markets available.")
+            return None
 
-        # Submit to load markets
-        driver.find_element(By.ID, 'btnGo').click()
-        time.sleep(3)
+        market_dropdown.select_by_visible_text(valid_markets[0])
 
-        # Select all markets
-        Select(driver.find_element(By.ID, 'ddlMarket')).select_by_visible_text("---All---")
+        # Set Date From and To
+        from_date = (datetime.now() - timedelta(days=2)).strftime('%d-%b-%Y')
+        to_date = datetime.now().strftime('%d-%b-%Y')
+
+        driver.find_element(By.ID, "txtDate").clear()
+        driver.find_element(By.ID, "txtDate").send_keys(from_date)
+        driver.find_element(By.ID, "txtToDate").clear()
+        driver.find_element(By.ID, "txtToDate").send_keys(to_date)
+
+        # Submit the form
         driver.find_element(By.ID, 'btnGo').click()
+
+        # Wait for table to load
         WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'cphBody_GridPriceData')))
+        time.sleep(2)  # Sometimes needs extra wait
 
-        # Scrape and parse modal prices
+        # Scrape the data
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         rows = soup.find_all("tr")
         prices = []
-        for row in rows[4:-1]:
-            cols = row.text.replace("\n", "_").replace("  ", "").split("__")
+
+        for row in rows[4:]:  # Skip header rows
+            cols = [td.get_text(strip=True) for td in row.find_all("td")]
             if len(cols) >= 11:
                 try:
-                    price = int(cols[9])  # Modal Price (Rs./Quintal)
-                    prices.append(price)
+                    modal_price = int(cols[10])  # 11th column: Modal Price (Rs./Quintal)
+                    prices.append(modal_price)
                 except:
                     continue
 
         if not prices:
-            print("⚠️ No modal prices found after scraping.")
+            print("⚠️ No prices found.")
             return None
 
-        print(f"📊 Retrieved {len(prices)} prices: {prices[:10]}{'...' if len(prices) > 10 else ''}")
+        print(f"📊 {len(prices)} prices found. Sample: {prices[:5]}")
 
-        # IQR filtering and median prediction
+        # Filter and return median
         q1 = np.percentile(prices, 25)
         q3 = np.percentile(prices, 75)
         iqr = q3 - q1
         filtered = [p for p in prices if q1 - 1.5 * iqr <= p <= q3 + 1.5 * iqr]
-        return int(np.median(filtered)) if filtered else int(np.median(prices))
+        predicted = int(np.median(filtered)) if filtered else int(np.median(prices))
+        print(f"✅ Predicted price: ₹{predicted} per quintal")
+        return predicted
 
     except Exception as e:
-        print(f"❌ Scraping error: {e}")
+        print(f"❌ Error: {e}")
         return None
     finally:
         driver.quit()
