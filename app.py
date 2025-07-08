@@ -15,6 +15,7 @@ import numpy as np
 import time
 from bs4 import BeautifulSoup
 from selenium.common.exceptions import NoSuchElementException
+from difflib import get_close_matches
 
 # --- Load Environment Variables ---
 load_dotenv()
@@ -133,7 +134,22 @@ AGMARKNET_STATES = {
 }
 
 
-# --- Selenium setup & scraper ---
+
+
+def sanitize_commodity_name(driver, input_commodity):
+    try:
+        # Get all available options from commodity dropdown
+        dropdown = Select(driver.find_element(By.ID, 'ddlCommodity'))
+        commodity_options = [option.text.strip() for option in dropdown.options if option.text.strip() and option.text != "--Select--"]
+
+        # Fuzzy match
+        match = get_close_matches(input_commodity, commodity_options, n=1, cutoff=0.6)
+        return match[0] if match else None
+    except Exception as e:
+        print(f"❌ Error sanitizing commodity name: {e}")
+        return None
+
+
 def scrape_agmarknet_prices(state, commodity):
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
@@ -152,8 +168,16 @@ def scrape_agmarknet_prices(state, commodity):
         except NoSuchElementException:
             pass
 
+        # Sanitize commodity name
+        sanitized_commodity = sanitize_commodity_name(driver, commodity)
+        if not sanitized_commodity:
+            print(f"⚠️ No close match found for commodity: '{commodity}'")
+            return None
+
+        print(f"✅ Using commodity: {sanitized_commodity}")
+
         # Set inputs
-        Select(driver.find_element(By.ID, 'ddlCommodity')).select_by_visible_text(commodity)
+        Select(driver.find_element(By.ID, 'ddlCommodity')).select_by_visible_text(sanitized_commodity)
         Select(driver.find_element(By.ID, 'ddlState')).select_by_visible_text(state)
 
         date_input = driver.find_element(By.ID, "txtDate")
@@ -183,7 +207,10 @@ def scrape_agmarknet_prices(state, commodity):
                     continue
 
         if not prices:
+            print("⚠️ No modal prices found after scraping.")
             return None
+
+        print(f"📊 Retrieved {len(prices)} prices: {prices[:10]}{'...' if len(prices) > 10 else ''}")
 
         # IQR filtering and median prediction
         q1 = np.percentile(prices, 25)
@@ -192,7 +219,8 @@ def scrape_agmarknet_prices(state, commodity):
         filtered = [p for p in prices if q1 - 1.5 * iqr <= p <= q3 + 1.5 * iqr]
         return int(np.median(filtered)) if filtered else int(np.median(prices))
 
-    except:
+    except Exception as e:
+        print(f"❌ Scraping error: {e}")
         return None
     finally:
         driver.quit()
@@ -437,67 +465,22 @@ def webhook():
 
 @app.route('/notify-farmer', methods=['POST'])
 def notify_farmer():
-    try:
-        data = request.json
-        phone = data.get('phone_number')
-        items = data.get('items', [])
-
-        if not phone or not items:
-            return jsonify({"error": "Invalid data"}), 400
-
-        # Determine the user's language from user_states, default to English if not found
-        # This assumes the user has interacted with the bot at least once to set a language.
-        # If not, a default language (e.g., English) would be used.
-        user_lang = user_states.get(phone, {}).get('language', 'en')
-
-        # Crafting the message for illiterate users:
-        # 1. Use prominent emojis.
-        # 2. Keep text short and focused on numbers and key actions.
-        # 3. Consider sending an audio message *alongside* the text for clarity.
-
-        message_lines = []
-        audio_notification_text_parts = [] # To generate a combined audio message
-
-        # Initial message based on language
-        if user_lang == 'hi':
-            message_lines.append("🎉 *नया ऑर्डर!*")
-            audio_notification_text_parts.append("नया ऑर्डर आया है!")
-        else: # English
-            message_lines.append("🎉 *New Order!*")
-            audio_notification_text_parts.append("You have a new order!")
-
-        for item in items:
-            produce_name = item['produce']
-            quantity_bought = item['quantity_bought']
-            remaining_stock = item['remaining_stock']
-
-            if user_lang == 'hi':
-                message_lines.append(
-                    f"👉 फसल: *{produce_name}*\n"
-                    f"✅ बिका: *{quantity_bought}* किलो\n"
-                    f"📦 बचा है: *{remaining_stock}* किलो"
-                )
-                audio_notification_text_parts.append(
-                    f"{produce_name} {quantity_bought} किलो बिका है, और अब {remaining_stock} किलो बचा है।"
-                )
-            else: # English
-                message_lines.append(
-                    f"👉 Crop: *{produce_name}*\n"
-                    f"✅ Sold: *{quantity_bought}* kg\n"
-                    f"📦 Left: *{remaining_stock}* kg"
-                )
-                audio_notification_text_parts.append(
-                    f"Your {produce_name} sold {quantity_bought} kilograms, and {remaining_stock} kilograms are remaining."
-                )
-
-        message = "\n\n".join(message_lines)
-        send_whatsapp_message(phone, message)
-        
-        combined_audio_text = " ".join(audio_notification_text_parts)
-        return jsonify({"status": "sent"}), 200
-    except Exception as e:
-        print(f"❌ Error in /notify-farmer: {e}")
-        return jsonify({"error": str(e)}), 500
+    data = request.json
+    phone = data.get('phone_number')
+    items = data.get('items',[])
+    if not phone or not items:
+        return jsonify({"error":"Invalid"}),400
+    lang = user_states.get(phone,{}).get('language','en')
+    lines=[]
+    hdr = "🎉 *New Order!*" if lang=='en' else "🎉 *नया ऑर्डर!*"
+    lines.append(hdr)
+    for it in items:
+        if lang=='hi':
+            lines.append(f"👉 {it['produce']} | बिक: {it['quantity_bought']}kg | बचे: {it['remaining_stock']}kg")
+        else:
+            lines.append(f"👉 {it['produce']} | Sold: {it['quantity_bought']}kg | Left: {it['remaining_stock']}kg")
+    send_whatsapp_message(phone, "\n".join(lines))
+    return jsonify({"status":"notified"}),200
 
 
 if __name__ == '__main__':

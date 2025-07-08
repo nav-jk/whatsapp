@@ -1,29 +1,23 @@
-# Core dependencies
+# --- Core dependencies ---
 Flask==3.1.1
 requests==2.32.4
 python-dotenv==1.1.1
 
-# Web scraping and browser automation
+# --- Web scraping and browser automation ---
 selenium==4.34.0
 webdriver-manager==4.0.2
 beautifulsoup4==4.12.3
 
-# Data handling
+# --- Data handling ---
 pandas==2.3.0
 numpy==2.0.2
 
-# Production server
+# --- Fuzzy matching for commodity name sanitization ---
+fuzzywuzzy==0.18.0
+python-Levenshtein==0.25.1  # Optional but makes fuzzywuzzy faster
+
+# --- Supporting libraries ---
 gunicorn==23.0.0
-
-# Flask dependencies
-Jinja2==3.1.6
-click==8.1.8
-itsdangerous==2.2.0
-Werkzeug==3.1.3
-blinker==1.9.0
-markupsafe==3.0.2
-
-# Supporting libraries
 certifi==2025.6.15
 charset-normalizer==3.4.2
 idna==3.10
@@ -34,7 +28,15 @@ zipp==3.23.0
 typing_extensions==4.14.0
 importlib-metadata==8.7.0
 
-# Optional concurrency (used internally)
+# --- Flask internal ---
+Jinja2==3.1.6
+click==8.1.8
+itsdangerous==2.2.0
+Werkzeug==3.1.3
+blinker==1.9.0
+markupsafe==3.0.2
+
+# --- Optional: For concurrency and sockets (used by some libs) ---
 trio==0.30.0
 trio-websocket==0.12.2
 sniffio==1.3.1
