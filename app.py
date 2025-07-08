@@ -30,7 +30,7 @@ AUDIO_CLIPS = {
     "en": {
         'ask_name': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_name.mp3",
         'ask_address': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_address.mp3",
-        "ask_state":         "...",
+        "ask_state":   "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_state.mp3",
         'ask_pincode': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_pincode.mp3",
         'ask_password': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_password.mp3",
         'reg_complete': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_reg_complete.mp3",
@@ -46,7 +46,7 @@ AUDIO_CLIPS = {
     "hi": {  # Hindi clips...
         'ask_name': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_name.mp3",
         'ask_address': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_address.mp3",
-        "ask_state":         "...",
+        "ask_state":   "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_state.mp3",
         'ask_pincode': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_pincode.mp3",
         'ask_password': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_password.mp3",
         'reg_complete': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_reg_complete.mp3",
@@ -208,7 +208,7 @@ def add_produce_api(produce_data, access_token):
         "name": produce_data['name'],
         "price": float(produce_data['price_per_kg']),
         "quantity": float(produce_data['quantity_kg']),
-        "category": produce_data.get('category',"Others")
+        "category": "Others"
     }
     try:
         res = requests.post(url, headers=headers, json=payload)
