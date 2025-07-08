@@ -360,6 +360,7 @@ def webhook():
                 user_states[from_no]['state']='awaiting_crop_name_manual'
         else:
             send_text(from_no,"Invalid choice; reply with the category number.")
+            user_states[from_no]['state']='awaiting_crop_name_manual'
         return 'OK',200
 
     # --- PRODUCT CHOICE ---
