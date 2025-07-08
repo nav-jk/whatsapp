@@ -427,19 +427,11 @@ def webhook():
             lang = user_states[from_number]['language']
             crop_name = msg_body.strip()
             user_states[from_number]['temp_produce'] = {'name': crop_name}
-
             send_whatsapp_message(from_number, f"🔍 Checking market prices for {crop_name}. Please wait...")
 
             try:
-                # Optional: short delay to simulate progress
-                time.sleep(2)
-
-                # Run price prediction with max 35 seconds wait
-                predicted_price = run_with_timeout(
-                    scrape_agmarknet_prices,
-                    args=("Kerala", crop_name),
-                    timeout=35
-                )
+                # This may take 30+ seconds due to agmarknet load times
+                predicted_price = scrape_agmarknet_prices("Kerala", crop_name)
 
                 if predicted_price:
                     msg = f"📈 Based on recent market data, the expected price for {crop_name} is ₹{predicted_price} per quintal."
@@ -455,6 +447,7 @@ def webhook():
                 send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_price'])
 
             user_states[from_number]['state'] = 'awaiting_price'
+
 
         elif current_state == 'awaiting_price':
             lang = user_states[from_number]['language']
