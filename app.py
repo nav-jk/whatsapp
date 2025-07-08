@@ -10,6 +10,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select, WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+from datetime import datetime, timedelta
+import numpy as np
+import time
+from bs4 import BeautifulSoup
+from selenium.common.exceptions import NoSuchElementException
 
 # --- Load Environment Variables ---
 load_dotenv()
@@ -129,34 +134,69 @@ AGMARKNET_STATES = {
 
 
 # --- Selenium setup & scraper ---
-def setup_driver():
-    opts = webdriver.ChromeOptions()
-    opts.add_argument("--headless")
-    opts.add_argument("--no-sandbox")
-    opts.add_argument("--disable-dev-shm-usage")
-    return webdriver.Chrome(options=opts)
-
 def scrape_agmarknet_prices(state, commodity):
-    code = AGMARKNET_STATES.get(state)
-    if not code: return []
-    driver = setup_driver()
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+
+    driver = webdriver.Chrome(options=options)
     try:
-        driver.get("https://agmarknet.gov.in/PriceAndArrivals/DatewiseCommodityReport.aspx")
-        wait = WebDriverWait(driver, 10)
-        Select(wait.until(EC.presence_of_element_located((By.ID, "cphBody_cboState")))).select_by_value(code)
-        time.sleep(1)
-        Select(wait.until(EC.presence_of_element_located((By.ID, "cphBody_cboCommodity")))).select_by_visible_text(commodity)
-        driver.find_element(By.ID, "cphBody_btnSubmit").click()
-        wait.until(EC.presence_of_element_located((By.ID, "cphBody_gridRecords")))
-        tables = pd.read_html(driver.page_source, attrs={'id':'cphBody_gridRecords'})
-        df = tables[0]
-        # convert to per‑kg and return modal price list
-        df['Modal Price (Rs./Kg)'] = pd.to_numeric(df['Modal Price (Rs./Quintal)'], errors='coerce')/100
-        return df['Modal Price (Rs./Kg)'].dropna().round(2).astype(str).tolist()
+        driver.get("https://agmarknet.gov.in/SearchCmmMkt.aspx")
+
+        # Close popup if it appears
+        try:
+            popup = driver.find_element(By.CLASS_NAME, 'popup-onload')
+            close_btn = popup.find_element(By.CLASS_NAME, 'close')
+            close_btn.click()
+        except NoSuchElementException:
+            pass
+
+        # Set inputs
+        Select(driver.find_element(By.ID, 'ddlCommodity')).select_by_visible_text(commodity)
+        Select(driver.find_element(By.ID, 'ddlState')).select_by_visible_text(state)
+
+        date_input = driver.find_element(By.ID, "txtDate")
+        date_input.clear()
+        date_input.send_keys((datetime.now() - timedelta(days=7)).strftime('%d-%b-%Y'))
+
+        # Submit to load markets
+        driver.find_element(By.ID, 'btnGo').click()
+        time.sleep(3)
+
+        # Select all markets
+        Select(driver.find_element(By.ID, 'ddlMarket')).select_by_visible_text("---All---")
+        driver.find_element(By.ID, 'btnGo').click()
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'cphBody_GridPriceData')))
+
+        # Scrape and parse modal prices
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        rows = soup.find_all("tr")
+        prices = []
+        for row in rows[4:-1]:
+            cols = row.text.replace("\n", "_").replace("  ", "").split("__")
+            if len(cols) >= 11:
+                try:
+                    price = int(cols[9])  # Modal Price (Rs./Quintal)
+                    prices.append(price)
+                except:
+                    continue
+
+        if not prices:
+            return None
+
+        # IQR filtering and median prediction
+        q1 = np.percentile(prices, 25)
+        q3 = np.percentile(prices, 75)
+        iqr = q3 - q1
+        filtered = [p for p in prices if q1 - 1.5 * iqr <= p <= q3 + 1.5 * iqr]
+        return int(np.median(filtered)) if filtered else int(np.median(prices))
+
     except:
-        return []
+        return None
     finally:
         driver.quit()
+
 
 # --- Backend API helpers ---
 def check_farmer_exists(phone_number):
@@ -340,18 +380,24 @@ def webhook():
             lang = user_states[from_number]['language']
             crop_name = msg_body.strip()
             user_states[from_number]['temp_produce'] = {'name': crop_name}
+            send_whatsapp_message(from_number, "🔍 Checking market prices. Please wait...")
 
             try:
-                response = requests.get(f"{API_BASE_URL}/api/v1/farmer/produce/prices/")
-                produce_prices = response.json() if response.status_code == 200 else []
-            except Exception as e:
-                print(f"❌ Error fetching price list: {e}")
-                produce_prices = []
+                predicted_price = scrape_agmarknet_prices("Kerala", crop_name)  # You can use user's state if available
 
-            prices = [float(item['price']) for item in produce_prices if crop_name.lower() in item['name'].lower()]
-            print(f"👀 Price list found for '{crop_name}':", prices)
-            send_whatsapp_message(from_number, "Price prediction on the way...Please enter price for now")
-            send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_price'])
+                if predicted_price:
+                    msg = f"📈 Based on recent market data, the expected price for {crop_name} is ₹{predicted_price} per quintal."
+                    send_whatsapp_message(from_number, msg)
+                    user_states[from_number]['temp_produce']['predicted_price'] = predicted_price
+                else:
+                    send_whatsapp_message(from_number, "⚠️ Couldn't predict the price right now. Please enter it manually.")
+                    send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_price'])
+
+            except Exception as e:
+                print(f"❌ Error during price prediction: {e}")
+                send_whatsapp_message(from_number, "⚠️ Error predicting price. Please enter it manually.")
+                send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_price'])
+
             user_states[from_number]['state'] = 'awaiting_price'
 
         elif current_state == 'awaiting_price':
