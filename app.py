@@ -200,7 +200,7 @@ def scrape_agmarknet_prices(state, commodity):
 
         # Wait for table to load
         WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'cphBody_GridPriceData')))
-        time.sleep(2)  # Sometimes needs extra wait
+        time.sleep(10)  # Sometimes needs extra wait
 
         # Scrape the data
         soup = BeautifulSoup(driver.page_source, 'html.parser')
