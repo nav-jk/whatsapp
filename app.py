@@ -206,8 +206,9 @@ def scrape_agmarknet_prices(state, commodity):
         driver.find_element(By.ID, 'btnGo').click()
 
         # Wait for table to load
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'cphBody_GridPriceData')))
-        time.sleep(30)  # Sometimes needs extra wait
+        WebDriverWait(driver, 35).until(EC.presence_of_element_located((By.ID, 'cphBody_GridPriceData')))
+        time.sleep(5)  # Sometimes needs extra wait
+        driver.execute_script("arguments[0].scrollIntoView();", driver.find_element(By.ID, 'cphBody_GridPriceData'))
 
         # Scrape the data
         soup = BeautifulSoup(driver.page_source, 'html.parser')
