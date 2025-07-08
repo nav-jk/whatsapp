@@ -16,6 +16,8 @@ import time
 from bs4 import BeautifulSoup
 from selenium.common.exceptions import NoSuchElementException
 from difflib import get_close_matches
+import threading
+
 
 # --- Load Environment Variables ---
 load_dotenv()
@@ -133,8 +135,21 @@ AGMARKNET_STATES = {
     'Puducherry': 'PY'
 }
 
+# Helper to run a function in a thread with timeout
+def run_with_timeout(func, args=(), kwargs={}, timeout=35):
+    result = {}
 
+    def target():
+        result['value'] = func(*args, **kwargs)
 
+    thread = threading.Thread(target=target)
+    thread.start()
+    thread.join(timeout)
+
+    if thread.is_alive():
+        print("⏰ Timeout reached while waiting for price prediction.")
+        return None
+    return result.get('value', None)
 
 def sanitize_commodity_name(driver, input_commodity):
     try:
@@ -177,14 +192,6 @@ def scrape_agmarknet_prices(state, commodity):
         Select(driver.find_element(By.ID, 'ddlState')).select_by_visible_text(state)
 
         # Wait for markets to load
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, 'ddlMarket')))
-        market_dropdown = Select(driver.find_element(By.ID, 'ddlMarket'))
-        valid_markets = [opt.text for opt in market_dropdown.options if "--Select--" not in opt.text]
-        if not valid_markets:
-            print("⚠️ No valid markets available.")
-            return None
-
-        market_dropdown.select_by_visible_text(valid_markets[0])
 
         # Set Date From and To
         from_date = (datetime.now() - timedelta(days=2)).strftime('%d-%b-%Y')
@@ -420,10 +427,19 @@ def webhook():
             lang = user_states[from_number]['language']
             crop_name = msg_body.strip()
             user_states[from_number]['temp_produce'] = {'name': crop_name}
+
             send_whatsapp_message(from_number, f"🔍 Checking market prices for {crop_name}. Please wait...")
 
             try:
-                predicted_price = scrape_agmarknet_prices("Kerala", crop_name)  # You can use user's state if available
+                # Optional: short delay to simulate progress
+                time.sleep(2)
+
+                # Run price prediction with max 35 seconds wait
+                predicted_price = run_with_timeout(
+                    scrape_agmarknet_prices,
+                    args=("Kerala", crop_name),
+                    timeout=35
+                )
 
                 if predicted_price:
                     msg = f"📈 Based on recent market data, the expected price for {crop_name} is ₹{predicted_price} per quintal."
