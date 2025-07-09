@@ -51,7 +51,8 @@ AUDIO_CLIPS = {
         'welcome_back': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_welcome_back.mp3",
         'closing': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_closing.mp3",
         'ask_loginpassword': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_loginpassword.mp3",
-        'ask_choice' : "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_choice.mp3"
+        'ask_choice' : "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_choice.mp3",
+        'ask_location' : "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_location.mp3",
     },
     "hi": {  # Hindi clips...
         'ask_name': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_name.mp3",
@@ -68,7 +69,8 @@ AUDIO_CLIPS = {
         'welcome_back': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_welcome_back.mp3",
         'closing': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_closing.mp3",
         'ask_loginpassword': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_loginpassword.mp3",
-        'ask_choice' : "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_choice.mp3"
+        'ask_choice' : "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_choice.mp3",
+        'ask_location' : "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_location.mp3",
     }
 }
 
@@ -489,7 +491,6 @@ def webhook():
                     user_states[from_number]['access_token'] = login_resp['access']
                     user_states[from_number]['state'] = 'awaiting_main_menu'
                     send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_choice'])
-                    send_whatsapp_message(from_number, MAIN_MENU_MSG)
                 else:
                     send_whatsapp_message(from_number, "❌ Wrong password. Please try again.")
             else:
@@ -500,7 +501,6 @@ def webhook():
                         user_states[from_number]['state'] = 'awaiting_main_menu'
                         send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['reg_complete'])
                         send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_choice'])
-                        send_whatsapp_message(from_number, MAIN_MENU_MSG)
                     else:
                         send_whatsapp_message(from_number, "❌ Registration failed. Try again with 'hi'.")
 
@@ -515,9 +515,9 @@ def webhook():
                 send_whatsapp_message(from_number, "🎤 Please send your question as an audio message.")
             elif command in ['3', 'weather']:
                 user_states[from_number]['state'] = 'awaiting_weather_location'
-                send_whatsapp_message(from_number, "Please type your location (city/town/village) for weather updates.")
+                send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_location'])
             else:
-                send_whatsapp_message(from_number, "Please reply with 1, 2, or 3.\n" + MAIN_MENU_MSG)
+                send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_choice'])
 
         elif current_state == 'awaiting_crop_name':
             lang = user_states[from_number]['language']
