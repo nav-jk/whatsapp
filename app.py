@@ -17,7 +17,8 @@ from bs4 import BeautifulSoup
 from selenium.common.exceptions import NoSuchElementException
 from difflib import get_close_matches
 import threading
-
+import tempfile
+import shutil
 
 # --- Load Environment Variables ---
 load_dotenv()
@@ -135,6 +136,15 @@ AGMARKNET_STATES = {
     'Puducherry': 'PY'
 }
 
+# --- Main Menu Message ---
+MAIN_MENU_MSG = (
+    "What would you like to do?\n"
+    "1️⃣ Place an order\n"
+    "2️⃣ Ask a question/doubt\n"
+    "3️⃣ Get weather updates\n"
+    "Reply with 1, 2, or 3."
+)
+
 # Helper to run a function in a thread with timeout
 def run_with_timeout(func, args=(), kwargs={}, timeout=35):
     result = {}
@@ -245,7 +255,6 @@ def scrape_agmarknet_prices(state, commodity):
     finally:
         driver.quit()
 
-
 # --- Backend API helpers ---
 def check_farmer_exists(phone_number):
     url = f"{API_BASE_URL}/api/v1/farmer/check/{phone_number}/"
@@ -255,7 +264,6 @@ def check_farmer_exists(phone_number):
     except requests.exceptions.RequestException as e:
         print(f"ERROR checking farmer existence: {e}")
         return False
-
 
 def register_farmer_api(user_data):
     url = f"{API_BASE_URL}/api/v1/auth/signup/farmer/"
@@ -306,7 +314,6 @@ def add_produce_api(produce_data, access_token):
         print(f"Error in add_produce_api: {e}")
         return None
 
-
 # --- WhatsApp senders ---
 def send_whatsapp_message(to, msg):
     url = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
@@ -319,7 +326,6 @@ def send_whatsapp_audio(to, url_link):
     headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
     payload = {"messaging_product": "whatsapp", "to": to, "type": "audio", "audio": {"link": url_link}}
     requests.post(url, headers=headers, json=payload)
-
 
 # --- Webhook Handler ---
 @app.route('/webhook', methods=['GET', 'POST'])
@@ -342,8 +348,10 @@ def webhook():
 
         message = messages[0]
         from_number = message['from']
-        msg_body = message['text']['body']
-        command = msg_body.strip().lower()  # ✅ Properly sanitized
+        msg_body = message['text']['body'] if 'text' in message else ''
+        command = msg_body.strip().lower()
+        msg_audio_url = message['audio']['url'] if 'audio' in message else None
+
         print(f"📩 Message from {from_number}: '{command}'")
 
         # Initialize state if new user
@@ -373,8 +381,9 @@ def webhook():
                 login_resp = login_farmer_api(from_number, last_password)
                 if login_resp and login_resp.get('access'):
                     user_states[from_number]['access_token'] = login_resp['access']
-                    user_states[from_number]['state'] = 'awaiting_crop_name'
+                    user_states[from_number]['state'] = 'awaiting_main_menu'
                     send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['welcome_back'])
+                    send_whatsapp_message(from_number, MAIN_MENU_MSG)
                 else:
                     send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_password'])
                     user_states[from_number]['state'] = 'awaiting_password'
@@ -410,8 +419,9 @@ def webhook():
                 login_resp = login_farmer_api(from_number, msg_body)
                 if login_resp and login_resp.get('access'):
                     user_states[from_number]['access_token'] = login_resp['access']
-                    user_states[from_number]['state'] = 'awaiting_crop_name'
+                    user_states[from_number]['state'] = 'awaiting_main_menu'
                     send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['welcome_back'])
+                    send_whatsapp_message(from_number, MAIN_MENU_MSG)
                 else:
                     send_whatsapp_message(from_number, "❌ Wrong password. Please try again.")
             else:
@@ -419,10 +429,26 @@ def webhook():
                     login_resp = login_farmer_api(from_number, msg_body)
                     if login_resp and login_resp.get('access'):
                         user_states[from_number]['access_token'] = login_resp['access']
-                        user_states[from_number]['state'] = 'awaiting_crop_name'
+                        user_states[from_number]['state'] = 'awaiting_main_menu'
                         send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['reg_complete'])
+                        send_whatsapp_message(from_number, MAIN_MENU_MSG)
                     else:
                         send_whatsapp_message(from_number, "❌ Registration failed. Try again with 'hi'.")
+
+        elif current_state == 'awaiting_main_menu':
+            if command in ['1', 'order', 'place order']:
+                user_states[from_number]['state'] = 'awaiting_crop_name'
+                lang = user_states[from_number]['language']
+                send_whatsapp_message(from_number, "What crop would you like to sell? (Type the name)")
+            elif command in ['2', 'ask', 'doubt', 'question']:
+                user_states[from_number]['state'] = 'awaiting_audio_doubt'
+                lang = user_states[from_number]['language']
+                send_whatsapp_message(from_number, "🎤 Please send your question as an audio message.")
+            elif command in ['3', 'weather']:
+                user_states[from_number]['state'] = 'awaiting_weather_location'
+                send_whatsapp_message(from_number, "Please type your location (city/town/village) for weather updates.")
+            else:
+                send_whatsapp_message(from_number, "Please reply with 1, 2, or 3.\n" + MAIN_MENU_MSG)
 
         elif current_state == 'awaiting_crop_name':
             lang = user_states[from_number]['language']
@@ -449,7 +475,6 @@ def webhook():
 
             user_states[from_number]['state'] = 'awaiting_price'
 
-
         elif current_state == 'awaiting_price':
             lang = user_states[from_number]['language']
             user_states[from_number]['temp_produce']['price_per_kg'] = msg_body
@@ -474,16 +499,66 @@ def webhook():
             else:
                 send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['thank_you'])
                 user_states[from_number]['state'] = 'conversation_over'
+                send_whatsapp_message(from_number, MAIN_MENU_MSG)
+                user_states[from_number]['state'] = 'awaiting_main_menu'
 
         elif current_state == 'conversation_over':
             lang = user_states[from_number]['language']
             send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['closing'])
+            send_whatsapp_message(from_number, MAIN_MENU_MSG)
+            user_states[from_number]['state'] = 'awaiting_main_menu'
+
+        # --- AUDIO DOUBT HANDLER ---
+        elif current_state == 'awaiting_audio_doubt':
+            lang = user_states[from_number].get('language', 'en')
+            if msg_audio_url:
+                # Download WhatsApp audio (needs auth)
+                audio_headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
+                audio_resp = requests.get(msg_audio_url, headers=audio_headers)
+                if audio_resp.status_code == 200:
+                    with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as temp_audio:
+                        temp_audio.write(audio_resp.content)
+                        temp_audio_path = temp_audio.name
+                    # Forward to /chat/ endpoint
+                    with open(temp_audio_path, "rb") as f:
+                        files = {"file": (os.path.basename(temp_audio_path), f, "audio/ogg")}
+                        data = {"lang": lang}
+                        try:
+                            chat_resp = requests.post(
+                                "https://agrivoice-2-ws-2a-8000.ml.iit-ropar.truefoundry.cloud/chat",
+                                files=files, data=data, timeout=60)
+                            chat_resp.raise_for_status()
+                            out = chat_resp.json()
+                            # Send answer as text
+                            send_whatsapp_message(from_number, f"📝 Q: {out.get('transcription','')}\nA: {out.get('response','')}")
+                            # Send answer as audio
+                            audio_url = out.get("audio_url")
+                            if audio_url:
+                                send_whatsapp_audio(from_number, audio_url)
+                        except Exception as e:
+                            send_whatsapp_message(from_number, f"❌ Failed to get answer: {e}")
+                        finally:
+                            os.remove(temp_audio_path)
+                else:
+                    send_whatsapp_message(from_number, "❌ Couldn't download your audio. Please try again.")
+            else:
+                send_whatsapp_message(from_number, "Please send your doubt as an audio message.")
+            # Return to main menu
+            user_states[from_number]['state'] = 'awaiting_main_menu'
+            send_whatsapp_message(from_number, MAIN_MENU_MSG)
+
+        # --- WEATHER HANDLER (SIMPLE) ---
+        elif current_state == 'awaiting_weather_location':
+            location = msg_body.strip()
+            # Placeholder: replace with actual weather API call if needed
+            send_whatsapp_message(from_number, f"🌦️ Weather in {location}:\n[Weather details here]")
+            user_states[from_number]['state'] = 'awaiting_main_menu'
+            send_whatsapp_message(from_number, MAIN_MENU_MSG)
 
     except Exception as e:
         print(f"❌ Error in webhook: {e}")
 
     return 'OK', 200
-
 
 @app.route('/notify-farmer', methods=['POST'])
 def notify_farmer():
@@ -504,6 +579,42 @@ def notify_farmer():
     send_whatsapp_message(phone, "\n".join(lines))
     return jsonify({"status":"notified"}),200
 
+# --- /chat/ ENDPOINT (AUDIO QA PROXY) ---
+@app.route('/chat/', methods=['POST'])
+def chat():
+    """
+    Accepts audio + lang, forwards to truefoundry cloud endpoint, returns transcription, answer, and audio_url.
+    """
+    if 'file' not in request.files or 'lang' not in request.form:
+        return jsonify({'error': 'Missing file or lang'}), 400
+
+    file = request.files['file']
+    lang = request.form['lang']
+
+    # Save incoming file to a temp location
+    temp_dir = tempfile.mkdtemp()
+    temp_path = os.path.join(temp_dir, file.filename)
+    file.save(temp_path)
+
+    # Forward to truefoundry endpoint
+    files = {'file': open(temp_path, 'rb')}
+    data = {'lang': lang}
+    try:
+        resp = requests.post(
+            'https://agrivoice-2-ws-2a-8000.ml.iit-ropar.truefoundry.cloud/chat',
+            files=files,
+            data=data,
+            timeout=60
+        )
+        resp.raise_for_status()
+        output = resp.json()
+    except Exception as e:
+        shutil.rmtree(temp_dir)
+        return jsonify({'error': str(e)}), 500
+
+    # Clean up temp file
+    shutil.rmtree(temp_dir)
+    return jsonify(output), 200
 
 if __name__ == '__main__':
     print("🚀 WhatsApp Bot Running...")
