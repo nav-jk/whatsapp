@@ -452,8 +452,7 @@ def webhook():
                 if login_resp and login_resp.get('access'):
                     user_states[from_number]['access_token'] = login_resp['access']
                     user_states[from_number]['state'] = 'awaiting_main_menu'
-                    send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['welcome_back'])
-                    send_whatsapp_message(from_number, MAIN_MENU_MSG)
+                    send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_choice'])
                 else:
                     send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_password'])
                     user_states[from_number]['state'] = 'awaiting_password'
@@ -619,7 +618,6 @@ def webhook():
         # --- WEATHER HANDLER (SIMPLE) ---
         elif current_state == 'awaiting_weather_location':
             lang = user_states[from_number].get('language', 'en')
-            send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_location'])
             
             if message.get('type') == 'location':
                 location = message['location']
