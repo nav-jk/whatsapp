@@ -51,7 +51,7 @@ AUDIO_CLIPS = {
         'welcome_back': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_welcome_back.mp3",
         'closing': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_closing.mp3",
         'ask_loginpassword': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_loginpassword.mp3",
-        'ask_choice' : "https://raw.github.com/debdip4/agrikartwhatsappbot/blob/main/Audio_files/en_ask_choice.mp3"
+        'ask_choice' : "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_choice.mp3"
     },
     "hi": {  # Hindi clips...
         'ask_name': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_name.mp3",
@@ -68,7 +68,7 @@ AUDIO_CLIPS = {
         'welcome_back': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_welcome_back.mp3",
         'closing': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_closing.mp3",
         'ask_loginpassword': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_loginpassword.mp3",
-        'ask_choice' : "https://raw.github.com/debdip4/agrikartwhatsappbot/blob/main/Audio_files/hi_ask_choice.mp3"
+        'ask_choice' : "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_choice.mp3"
     }
 }
 
