@@ -619,6 +619,7 @@ def webhook():
         # --- WEATHER HANDLER (SIMPLE) ---
         elif current_state == 'awaiting_weather_location':
             lang = user_states[from_number].get('language', 'en')
+            send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_location'])
             
             if message.get('type') == 'location':
                 location = message['location']
@@ -634,7 +635,7 @@ def webhook():
 
             send_whatsapp_message(from_number, weather_report)
             user_states[from_number]['state'] = 'awaiting_main_menu'
-            send_whatsapp_message(from_number, MAIN_MENU_MSG)
+            send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_choice'])
 
     except Exception as e:
         print(f"❌ Error in webhook: {e}")
