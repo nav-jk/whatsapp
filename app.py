@@ -145,6 +145,35 @@ MAIN_MENU_MSG = (
     "Reply with 1, 2, or 3."
 )
 
+OPENWEATHER_API_KEY = "82c5f387b8d7068b44aa33ce26bf7cf2"  # Replace with your actual key
+
+def get_weather(location):
+    try:
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={location}&appid={OPENWEATHER_API_KEY}&units=metric"
+        response = requests.get(url)
+        data = response.json()
+
+        if data.get("cod") != 200:
+            return f"❌ Could not fetch weather for '{location}'. Please try a valid city."
+
+        name = data["name"]
+        temp = data["main"]["temp"]
+        description = data["weather"][0]["description"].capitalize()
+        humidity = data["main"]["humidity"]
+        wind_speed = data["wind"]["speed"]
+
+        weather_msg = (
+            f"🌦️ Weather in {name}:\n"
+            f"🌡️ Temperature: {temp}°C\n"
+            f"📋 Condition: {description}\n"
+            f"💧 Humidity: {humidity}%\n"
+            f"🌬️ Wind Speed: {wind_speed} m/s"
+        )
+        return weather_msg
+
+    except Exception as e:
+        return f"⚠️ Error retrieving weather: {str(e)}"
+
 # Helper to run a function in a thread with timeout
 def run_with_timeout(func, args=(), kwargs={}, timeout=35):
     result = {}
@@ -550,8 +579,8 @@ def webhook():
         # --- WEATHER HANDLER (SIMPLE) ---
         elif current_state == 'awaiting_weather_location':
             location = msg_body.strip()
-            # Placeholder: replace with actual weather API call if needed
-            send_whatsapp_message(from_number, f"🌦️ Weather in {location}:\n[Weather details here]")
+            weather_report = get_weather(location)
+            send_whatsapp_message(from_number, weather_report)
             user_states[from_number]['state'] = 'awaiting_main_menu'
             send_whatsapp_message(from_number, MAIN_MENU_MSG)
 
