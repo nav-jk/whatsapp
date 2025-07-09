@@ -147,32 +147,55 @@ MAIN_MENU_MSG = (
 
 OPENWEATHER_API_KEY = "82c5f387b8d7068b44aa33ce26bf7cf2"  # Replace with your actual key
 
-def get_weather(location):
+def get_weather(location, lang='en'):
     try:
         url = f"https://api.openweathermap.org/data/2.5/weather?q={location}&appid={OPENWEATHER_API_KEY}&units=metric"
         response = requests.get(url)
         data = response.json()
 
         if data.get("cod") != 200:
-            return f"❌ Could not fetch weather for '{location}'. Please try a valid city."
+            if lang == 'hi':
+                return f"❌ '{location}' के लिए मौसम जानकारी नहीं मिली। कृपया मान्य स्थान दर्ज करें।"
+            else:
+                return f"❌ Could not fetch weather for '{location}'. Please try a valid location."
 
         name = data["name"]
         temp = data["main"]["temp"]
+        feels_like = data["main"]["feels_like"]
         description = data["weather"][0]["description"].capitalize()
         humidity = data["main"]["humidity"]
         wind_speed = data["wind"]["speed"]
+        pressure = data["main"]["pressure"]
+        cloudiness = data["clouds"]["all"]
 
-        weather_msg = (
-            f"🌦️ Weather in {name}:\n"
-            f"🌡️ Temperature: {temp}°C\n"
-            f"📋 Condition: {description}\n"
-            f"💧 Humidity: {humidity}%\n"
-            f"🌬️ Wind Speed: {wind_speed} m/s"
-        )
+        if lang == 'hi':
+            weather_msg = (
+                f"🌦️ *{name}* का मौसम:\n"
+                f"🌡️ तापमान: {temp}°C (अनुभूति: {feels_like}°C)\n"
+                f"📋 स्थिति: {description}\n"
+                f"💧 नमी: {humidity}%\n"
+                f"🌬️ हवा की गति: {wind_speed} मी/सेक\n"
+                f"📈 दबाव: {pressure} hPa\n"
+                f"☁️ बादल: {cloudiness}%\n"
+                f"\nℹ️ यह जानकारी *AI द्वारा उत्पन्न* की गई है और पूरी तरह सही हो यह आवश्यक नहीं है।\n📞 और जानकारी के लिए कृपया किसान कॉल सेंटर से संपर्क करें।"
+            )
+        else:
+            weather_msg = (
+                f"🌦️ *Weather in {name}*:\n"
+                f"🌡️ Temp: {temp}°C (Feels like: {feels_like}°C)\n"
+                f"📋 Condition: {description}\n"
+                f"💧 Humidity: {humidity}%\n"
+                f"🌬️ Wind: {wind_speed} m/s\n"
+                f"📈 Pressure: {pressure} hPa\n"
+                f"☁️ Cloud Cover: {cloudiness}%\n"
+                f"\nℹ️ This info is *AI-generated* and may not be fully accurate.\n📞 For reliable info, contact Kisan Call Centre."
+            )
+
         return weather_msg
 
     except Exception as e:
-        return f"⚠️ Error retrieving weather: {str(e)}"
+        return f"⚠️ Error fetching weather: {str(e)}"
+
 
 # Helper to run a function in a thread with timeout
 def run_with_timeout(func, args=(), kwargs={}, timeout=35):
@@ -579,7 +602,8 @@ def webhook():
         # --- WEATHER HANDLER (SIMPLE) ---
         elif current_state == 'awaiting_weather_location':
             location = msg_body.strip()
-            weather_report = get_weather(location)
+            lang = user_states[from_number].get('language', 'en')
+            weather_report = get_weather(location, lang)
             send_whatsapp_message(from_number, weather_report)
             user_states[from_number]['state'] = 'awaiting_main_menu'
             send_whatsapp_message(from_number, MAIN_MENU_MSG)
