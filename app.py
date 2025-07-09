@@ -51,6 +51,7 @@ AUDIO_CLIPS = {
         'welcome_back': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_welcome_back.mp3",
         'closing': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_closing.mp3",
         'ask_loginpassword': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_loginpassword.mp3",
+        'ask_choice' : "https://raw.github.com/debdip4/agrikartwhatsappbot/blob/main/Audio_files/en_ask_choice.mp3"
     },
     "hi": {  # Hindi clips...
         'ask_name': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_name.mp3",
@@ -67,6 +68,7 @@ AUDIO_CLIPS = {
         'welcome_back': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_welcome_back.mp3",
         'closing': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_closing.mp3",
         'ask_loginpassword': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_loginpassword.mp3",
+        'ask_choice' : "https://raw.github.com/debdip4/agrikartwhatsappbot/blob/main/Audio_files/hi_ask_choice.mp3"
     }
 }
 
@@ -147,55 +149,69 @@ MAIN_MENU_MSG = (
 
 OPENWEATHER_API_KEY = "82c5f387b8d7068b44aa33ce26bf7cf2"  # Replace with your actual key
 
-def get_weather(location, lang='en'):
+def get_weather_forecast(lat, lon, lang='en'):
     try:
-        url = f"https://api.openweathermap.org/data/2.5/weather?q={location}&appid={OPENWEATHER_API_KEY}&units=metric"
+        url = f"https://api.openweathermap.org/data/2.5/forecast?lat={lat}&lon={lon}&appid={OPENWEATHER_API_KEY}&units=metric"
         response = requests.get(url)
         data = response.json()
 
-        if data.get("cod") != 200:
-            if lang == 'hi':
-                return f"❌ '{location}' के लिए मौसम जानकारी नहीं मिली। कृपया मान्य स्थान दर्ज करें।"
-            else:
-                return f"❌ Could not fetch weather for '{location}'. Please try a valid location."
+        if data.get("cod") != "200":
+            return "❌ Unable to fetch weather data. Please try again."
 
-        name = data["name"]
-        temp = data["main"]["temp"]
-        feels_like = data["main"]["feels_like"]
-        description = data["weather"][0]["description"].capitalize()
-        humidity = data["main"]["humidity"]
-        wind_speed = data["wind"]["speed"]
-        pressure = data["main"]["pressure"]
-        cloudiness = data["clouds"]["all"]
+        from datetime import datetime
+        from collections import defaultdict
+
+        # Group forecasts by day
+        daily_forecast = defaultdict(list)
+        for entry in data['list']:
+            dt = datetime.fromtimestamp(entry['dt'])
+            date_key = dt.strftime('%Y-%m-%d')
+            daily_forecast[date_key].append(entry)
+
+        # Prepare response for 3 days
+        forecast_msg = ""
+        days = list(daily_forecast.keys())[:3]
+
+        for day in days:
+            entries = daily_forecast[day]
+            temps = [e['main']['temp'] for e in entries]
+            descriptions = [e['weather'][0]['description'] for e in entries]
+            humidities = [e['main']['humidity'] for e in entries]
+            winds = [e['wind']['speed'] for e in entries]
+
+            avg_temp = round(sum(temps) / len(temps), 1)
+            avg_humidity = round(sum(humidities) / len(humidities))
+            avg_wind = round(sum(winds) / len(winds), 1)
+            main_desc = max(set(descriptions), key=descriptions.count).capitalize()
+
+            if lang == 'hi':
+                forecast_msg += (
+                    f"\n📅 *{day}*:\n"
+                    f"🌡️ औसत तापमान: {avg_temp}°C\n"
+                    f"📋 मौसम: {main_desc}\n"
+                    f"💧 नमी: {avg_humidity}%\n"
+                    f"🌬️ हवा: {avg_wind} मी/सेक\n"
+                )
+            else:
+                forecast_msg += (
+                    f"\n📅 *{day}*:\n"
+                    f"🌡️ Avg Temp: {avg_temp}°C\n"
+                    f"📋 Condition: {main_desc}\n"
+                    f"💧 Humidity: {avg_humidity}%\n"
+                    f"🌬️ Wind: {avg_wind} m/s\n"
+                )
 
         if lang == 'hi':
-            weather_msg = (
-                f"🌦️ *{name}* का मौसम:\n"
-                f"🌡️ तापमान: {temp}°C (अनुभूति: {feels_like}°C)\n"
-                f"📋 स्थिति: {description}\n"
-                f"💧 नमी: {humidity}%\n"
-                f"🌬️ हवा की गति: {wind_speed} मी/सेक\n"
-                f"📈 दबाव: {pressure} hPa\n"
-                f"☁️ बादल: {cloudiness}%\n"
-                f"\nℹ️ यह जानकारी *AI द्वारा उत्पन्न* की गई है और पूरी तरह सही हो यह आवश्यक नहीं है।\n📞 और जानकारी के लिए कृपया किसान कॉल सेंटर से संपर्क करें।"
-            )
+            forecast_msg = "🌤️ *अगले 3 दिनों का मौसम पूर्वानुमान:*" + forecast_msg + \
+                "\n\nℹ️ यह जानकारी *AI द्वारा उत्पन्न* की गई है और पूरी तरह सही हो यह आवश्यक नहीं है।\n📞 अधिक जानकारी के लिए कृपया किसान कॉल सेंटर से संपर्क करें।"
         else:
-            weather_msg = (
-                f"🌦️ *Weather in {name}*:\n"
-                f"🌡️ Temp: {temp}°C (Feels like: {feels_like}°C)\n"
-                f"📋 Condition: {description}\n"
-                f"💧 Humidity: {humidity}%\n"
-                f"🌬️ Wind: {wind_speed} m/s\n"
-                f"📈 Pressure: {pressure} hPa\n"
-                f"☁️ Cloud Cover: {cloudiness}%\n"
-                f"\nℹ️ This info is *AI-generated* and may not be fully accurate.\n📞 For reliable info, contact Kisan Call Centre."
-            )
+            forecast_msg = "🌤️ *3-Day Weather Forecast:*" + forecast_msg + \
+                "\n\nℹ️ This info is *AI-generated* and may not be fully accurate.\n📞 For reliable info, contact Kisan Call Centre."
 
-        return weather_msg
+        return forecast_msg
 
     except Exception as e:
         return f"⚠️ Error fetching weather: {str(e)}"
-
 
 # Helper to run a function in a thread with timeout
 def run_with_timeout(func, args=(), kwargs={}, timeout=35):
@@ -472,7 +488,7 @@ def webhook():
                 if login_resp and login_resp.get('access'):
                     user_states[from_number]['access_token'] = login_resp['access']
                     user_states[from_number]['state'] = 'awaiting_main_menu'
-                    send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['welcome_back'])
+                    send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_choice'])
                     send_whatsapp_message(from_number, MAIN_MENU_MSG)
                 else:
                     send_whatsapp_message(from_number, "❌ Wrong password. Please try again.")
@@ -483,6 +499,7 @@ def webhook():
                         user_states[from_number]['access_token'] = login_resp['access']
                         user_states[from_number]['state'] = 'awaiting_main_menu'
                         send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['reg_complete'])
+                        send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_choice'])
                         send_whatsapp_message(from_number, MAIN_MENU_MSG)
                     else:
                         send_whatsapp_message(from_number, "❌ Registration failed. Try again with 'hi'.")
@@ -491,7 +508,7 @@ def webhook():
             if command in ['1', 'order', 'place order']:
                 user_states[from_number]['state'] = 'awaiting_crop_name'
                 lang = user_states[from_number]['language']
-                send_whatsapp_message(from_number, "What crop would you like to sell? (Type the name)")
+                send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['welcome_back'])
             elif command in ['2', 'ask', 'doubt', 'question']:
                 user_states[from_number]['state'] = 'awaiting_audio_doubt'
                 lang = user_states[from_number]['language']
@@ -601,9 +618,20 @@ def webhook():
 
         # --- WEATHER HANDLER (SIMPLE) ---
         elif current_state == 'awaiting_weather_location':
-            location = msg_body.strip()
             lang = user_states[from_number].get('language', 'en')
-            weather_report = get_weather(location, lang)
+            
+            if message.get('type') == 'location':
+                location = message['location']
+                lat = location['latitude']
+                lon = location['longitude']
+                weather_report = get_weather_forecast(lat, lon, lang)
+            else:
+                weather_report = (
+                    "📍 Please tap the 📎 icon and choose 'Location' to share your live location for the weather forecast."
+                    if lang == 'en'
+                    else "📍 मौसम जानने के लिए कृपया 📎 आइकन पर टैप करके 'स्थान' भेजें।"
+                )
+
             send_whatsapp_message(from_number, weather_report)
             user_states[from_number]['state'] = 'awaiting_main_menu'
             send_whatsapp_message(from_number, MAIN_MENU_MSG)
