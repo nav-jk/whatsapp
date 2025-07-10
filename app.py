@@ -579,50 +579,56 @@ def webhook():
         # --- AUDIO DOUBT HANDLER ---
         elif current_state == 'awaiting_audio_doubt':
             lang = user_states[from_number].get('language', 'en')
-            send_whatsapp_message(from_number, "🎙️ Entered audio doubt handler.")
+            
+            # Inform user we received the audio handler
+            send_whatsapp_message(from_number, "🎙️ Received your audio doubt, processing...")  
 
             if msg_audio_url:
-                try:
-                    send_whatsapp_message(from_number, f"📎 Got audio. Downloading...")
+                # Download the audio file
+                audio_headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
+                audio_resp = requests.get(msg_audio_url, headers=audio_headers)
+                send_whatsapp_message(from_number, f"🔁 Download audio status: {audio_resp.status_code}")
 
-                    audio_headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
-                    audio_resp = requests.get(msg_audio_url, headers=audio_headers)
-                    send_whatsapp_message(from_number, f"🔁 Download status: {audio_resp.status_code}")
-
-                    if audio_resp.status_code == 200:
-                        with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as temp_audio:
-                            temp_audio.write(audio_resp.content)
-                            temp_audio_path = temp_audio.name
-                        send_whatsapp_message(from_number, f"📁 Audio saved. Sending to AI...")
-
+                if audio_resp.status_code == 200 and audio_resp.content:
+                    with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as temp_audio:
+                        temp_audio.write(audio_resp.content)
+                        temp_audio_path = temp_audio.name
+                    
+                    send_whatsapp_message(from_number, "📁 Audio downloaded. Sending to our AI now...")
+                    
+                    try:
                         with open(temp_audio_path, "rb") as f:
                             files = {"file": (os.path.basename(temp_audio_path), f, "audio/ogg")}
                             data = {"lang": lang}
-                            try:
-                                send_whatsapp_message(from_number, "📡 Contacting AI server...")
-                                chat_resp = requests.post(
-                                    "https://agrivoice-2-ws-2a-8000.ml.iit-ropar.truefoundry.cloud/chat",
-                                    files=files, data=data, timeout=60)
-                                chat_resp.raise_for_status()
-                                out = chat_resp.json()
-                                send_whatsapp_message(from_number, f"✅ AI replied!\n📝 Q: {out.get('transcription','')}\nA: {out.get('response','')}")
+                            chat_resp = requests.post(
+                                "https://agrivoice-2-ws-2a-8000.ml.iit-ropar.truefoundry.cloud/chat/",
+                                files=files, data=data, timeout=60
+                            )
+                            send_whatsapp_message(from_number, f"📡 Sent to AI, status: {chat_resp.status_code}")
+                            
+                        if chat_resp.ok:
+                            out = chat_resp.json()
+                            send_whatsapp_message(from_number, f"✅ Here’s your answer:\n📝 Q: {out.get('transcription', '')}\n💬 A: {out.get('response', '')}")
+                            if audio_url := out.get("audio_url"):
+                                send_whatsapp_audio(from_number, audio_url)
+                        else:
+                            send_whatsapp_message(from_number, f"❌ AI error: {chat_resp.text}")
 
-                                if out.get("audio_url"):
-                                    send_whatsapp_audio(from_number, out["audio_url"])
-                            except Exception as e:
-                                send_whatsapp_message(from_number, f"❌ AI processing failed: {e}")
-                            finally:
-                                os.remove(temp_audio_path)
-                    else:
-                        send_whatsapp_message(from_number, "❌ Couldn't download your audio. Please try again.")
-                except Exception as e:
-                    send_whatsapp_message(from_number, f"❌ Audio handling error: {e}")
+                    except Exception as e:
+                        send_whatsapp_message(from_number, f"❌ Processing error: {e}")
+                    
+                    finally:
+                        os.remove(temp_audio_path)
+
+                else:
+                    send_whatsapp_message(from_number, "❌ Failed to download audio. Please resend.")
+                    
             else:
-                send_whatsapp_message(from_number, "❗ No audio detected. Please try again.")
+                send_whatsapp_message(from_number, "⚠️ No audio message detected—please send your question as a voice note.")
 
+            # Return to main menu
             user_states[from_number]['state'] = 'awaiting_main_menu'
             send_whatsapp_message(from_number, MAIN_MENU_MSG)
-
 
 
         # --- WEATHER HANDLER (SIMPLE) ---
