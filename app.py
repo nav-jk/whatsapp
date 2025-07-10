@@ -53,6 +53,7 @@ AUDIO_CLIPS = {
         'ask_loginpassword': "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_loginpassword.mp3",
         'ask_choice' : "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_choice.mp3",
         'ask_location' : "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ask_location.mp3",
+        'ai_bot_disclaimer' : "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/en_ai_bot_disclaimer.mp3"
     },
     "hi": {  # Hindi clips...
         'ask_name': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_name.mp3",
@@ -71,6 +72,7 @@ AUDIO_CLIPS = {
         'ask_loginpassword': "https://raw.githubusercontent.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_loginpassword.mp3",
         'ask_choice' : "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_choice.mp3",
         'ask_location' : "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ask_location.mp3",
+        'ai_bot_disclaimer' : "https://raw.github.com/debdip4/agrikartwhatsappbot/main/Audio_files/hi_ai_bot_disclaimer.mp3"
     }
 }
 
@@ -521,7 +523,7 @@ def webhook():
             elif command in ['2', 'ask', 'doubt', 'question']:
                 user_states[from_number]['state'] = 'awaiting_audio_doubt'
                 lang = user_states[from_number]['language']
-                send_whatsapp_message(from_number, "🎤 Please send your question as an audio message.")
+                send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ai_bot_disclaimer'])
             elif command in ['3', 'weather']:
                 user_states[from_number]['state'] = 'awaiting_weather_location'
                 send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_location'])
@@ -589,22 +591,16 @@ def webhook():
         # --- AUDIO DOUBT HANDLER ---
         elif current_state == 'awaiting_audio_doubt':
             lang = user_states[from_number].get('language', 'en')
-            
-            # Inform user we received the audio handler
-            send_whatsapp_message(from_number, "🎙️ Received your audio doubt, processing...")  
 
             if msg_audio_url:
                 # Download the audio file
                 audio_headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
                 audio_resp = requests.get(msg_audio_url, headers=audio_headers)
-                send_whatsapp_message(from_number, f"🔁 Download audio status: {audio_resp.status_code}")
 
                 if audio_resp.status_code == 200 and audio_resp.content:
                     with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as temp_audio:
                         temp_audio.write(audio_resp.content)
                         temp_audio_path = temp_audio.name
-                    
-                    send_whatsapp_message(from_number, "📁 Audio downloaded. Sending to our AI now...")
                     
                     try:
                         with open(temp_audio_path, "rb") as f:
@@ -618,7 +614,7 @@ def webhook():
                             
                         if chat_resp.ok:
                             out = chat_resp.json()
-                            send_whatsapp_message(from_number, f"✅ Here’s your answer:\n📝 Q: {out.get('transcription', '')}\n💬 A: {out.get('response', '')}")
+                            send_whatsapp_message(from_number, f"{out.get('response', '')}")
                             if audio_url := out.get("audio_url"):
                                 send_whatsapp_audio(from_number, audio_url)
                         else:
@@ -638,7 +634,7 @@ def webhook():
 
             # Return to main menu
             user_states[from_number]['state'] = 'awaiting_main_menu'
-            send_whatsapp_message(from_number, MAIN_MENU_MSG)
+            send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_choice'])
 
 
         # --- WEATHER HANDLER (SIMPLE) ---
@@ -688,9 +684,6 @@ def notify_farmer():
 # --- /chat/ ENDPOINT (AUDIO QA PROXY) ---
 @app.route('/chat/', methods=['POST'])
 def chat():
-    """
-    Accepts audio + lang, forwards to truefoundry cloud endpoint, returns transcription, answer, and audio_url.
-    """
     if 'file' not in request.files or 'lang' not in request.form:
         return jsonify({'error': 'Missing file or lang'}), 400
 
