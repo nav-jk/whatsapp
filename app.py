@@ -420,7 +420,17 @@ def webhook():
         from_number = message['from']
         msg_body = message['text']['body'] if 'text' in message else ''
         command = msg_body.strip().lower()
-        msg_audio_url = message['audio']['url'] if 'audio' in message else None
+        msg_audio_url = None
+        if message.get("type") == "audio" and "audio" in message:
+            media_id = message["audio"]["id"]
+            # Step 1: Get media URL using the media ID
+            media_url_resp = requests.get(
+                f"https://graph.facebook.com/v19.0/{media_id}",
+                headers={"Authorization": f"Bearer {ACCESS_TOKEN}"}
+            )
+            if media_url_resp.ok:
+                msg_audio_url = media_url_resp.json().get("url")
+
 
         print(f"📩 Message from {from_number}: '{command}'")
 
