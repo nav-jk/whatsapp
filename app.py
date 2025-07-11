@@ -608,7 +608,7 @@ def webhook():
                             data = {"lang": lang}
                             chat_resp = requests.post(
                                 "https://agrivoice-2-ws-2a-8000.ml.iit-ropar.truefoundry.cloud/chat/",
-                                files=files, data=data, timeout=60
+                                files=files, data=data, timeout=90
                             )
                             
                         if chat_resp.ok:
