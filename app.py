@@ -593,43 +593,47 @@ def webhook():
             lang = user_states[from_number].get('language', 'en')
 
             if msg_audio_url:
-                # Download the audio file
-                audio_headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
-                audio_resp = requests.get(msg_audio_url, headers=audio_headers)
+                try:
+                    # Get and save the audio
+                    audio_headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
+                    audio_resp = requests.get(msg_audio_url, headers=audio_headers)
 
-                if audio_resp.status_code == 200 and audio_resp.content:
+                    if audio_resp.status_code != 200:
+                        raise Exception(f"Failed to fetch audio media. Status: {audio_resp.status_code}")
+
+                    # Save to temp file
                     with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as temp_audio:
                         temp_audio.write(audio_resp.content)
                         temp_audio_path = temp_audio.name
-                    
-                    try:
-                        with open(temp_audio_path, "rb") as f:
-                            files = {"file": (os.path.basename(temp_audio_path), f, "audio/ogg")}
-                            data = {"lang": lang}
-                            chat_resp = requests.post(
-                                "https://agrivoice-2-ws-2a-8000.ml.iit-ropar.truefoundry.cloud/chat/",
-                                files=files, data=data, timeout=90
-                            )
-                            
-                        if chat_resp.ok:
-                            out = chat_resp.json()
-                            send_whatsapp_message(from_number, f"{out.get('response', '')}")
-                            if audio_url := out.get("audio_url"):
-                                send_whatsapp_audio(from_number, audio_url)
+
+                    # Send to voice assistant
+                    with open(temp_audio_path, "rb") as f:
+                        files = {"file": (os.path.basename(temp_audio_path), f, "audio/ogg")}
+                        data = {"lang": lang}
+                        chat_resp = requests.post(
+                            "https://agrivoice-2-ws-2a-8000.ml.iit-ropar.truefoundry.cloud/chat/",
+                            files=files, data=data, timeout=60
+                        )
+
+                    if chat_resp.ok:
+                        out = chat_resp.json()
+                        if out.get("response"):
+                            send_whatsapp_message(from_number, out["response"])
+                        if out.get("audio_url"):
+                            send_whatsapp_audio(from_number, out["audio_url"])
                         else:
-                            send_whatsapp_message(from_number, f"❌ AI error: {chat_resp.text}")
-
-                    except Exception as e:
-                        send_whatsapp_message(from_number, f"❌ Processing error: {e}")
-                    
-                    finally:
+                            send_whatsapp_message(from_number, "⚠️ Audio response unavailable.")
+                    else:
+                        raise Exception(f"Voice Assistant Error: {chat_resp.text}")
+                except Exception as e:
+                    print(f"❌ Audio doubt processing error: {e}")
+                    send_whatsapp_message(from_number, "❌ AI assistant failed. Please try again.")
+                finally:
+                    if os.path.exists(temp_audio_path):
                         os.remove(temp_audio_path)
-
-                else:
-                    send_whatsapp_message(from_number, "❌ Failed to download audio. Please resend.")
-                    
             else:
-                send_whatsapp_message(from_number, "⚠️ No audio message detected—please send your question as a voice note.")
+                send_whatsapp_message(from_number, "⚠️ No voice message found. Please send your doubt as a voice message.")
+
 
             # Return to main menu
             user_states[from_number]['state'] = 'awaiting_main_menu'
