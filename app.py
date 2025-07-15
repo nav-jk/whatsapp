@@ -685,21 +685,27 @@ def notify_farmer():
 # --- /chat/ ENDPOINT (AUDIO QA PROXY) ---
 @app.route('/chat/', methods=['POST'])
 def chat():
+    print("📥 Received /chat/ POST request.")
+
     if 'file' not in request.files or 'lang' not in request.form:
+        print("❌ Missing 'file' or 'lang' in request.")
         return jsonify({'error': 'Missing file or lang'}), 400
 
     file = request.files['file']
     lang = request.form['lang']
+    print(f"✅ Received file: {file.filename}, Language: {lang}")
 
     # Save incoming file to a temp location
     temp_dir = tempfile.mkdtemp()
     temp_path = os.path.join(temp_dir, file.filename)
     file.save(temp_path)
+    print(f"📁 Saved uploaded file to temp path: {temp_path}")
 
     files = {'file': open(temp_path, 'rb')}
     data = {'lang': lang}
 
     try:
+        print("🔁 Sending request to TrueFoundry API...")
         resp = requests.post(
             'https://agrivoice-2-ws-2a-8000.ml.iit-ropar.truefoundry.cloud/chat',
             files=files,
@@ -708,8 +714,10 @@ def chat():
         )
         resp.raise_for_status()
         output = resp.json()
+        print("✅ Received successful response from TrueFoundry API.")
     except Exception as e:
-        # FALLBACK HARDCODED RESPONSE
+        print(f"⚠️ TrueFoundry API call failed: {e}")
+        print("⏱️ Using fallback hardcoded response instead.")
         output = {
             "language": "hi",
             "transcription": "How to grow wheat?",
@@ -719,13 +727,11 @@ def chat():
 
     # Clean up temp file
     shutil.rmtree(temp_dir)
+    print(f"🧹 Cleaned up temp directory: {temp_dir}")
 
+    print("📤 Returning response to client.")
     return jsonify(output), 200
 
-
-    # Clean up temp file
-    shutil.rmtree(temp_dir)
-    return jsonify(output), 200
 
 if __name__ == '__main__':
     print(" WhatsApp Bot Running...")
