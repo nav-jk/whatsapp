@@ -730,6 +730,7 @@ def chat():
     print(f"🧹 Cleaned up temp directory: {temp_dir}")
 
     print("📤 Returning response to client.")
+    print("📦 Response JSON:", output)
     return jsonify(output), 200
 
 
