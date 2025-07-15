@@ -545,7 +545,7 @@ def webhook():
                     send_whatsapp_message(from_number, msg)
                     user_states[from_number]['temp_produce']['predicted_price'] = predicted_price
                 else:
-                    send_whatsapp_message(from_number, "⚠️ Couldn't predict the price right now. Please enter it manually.")
+                    send_whatsapp_message(from_number, "⚠️ अभी कीमत का अनुमान नहीं लगाया जा सका। कृपया इसे मैन्युअली दर्ज करें।")
                     send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['ask_price'])
 
             except Exception as e:
@@ -579,13 +579,11 @@ def webhook():
             else:
                 send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['thank_you'])
                 user_states[from_number]['state'] = 'conversation_over'
-                send_whatsapp_message(from_number, MAIN_MENU_MSG)
                 user_states[from_number]['state'] = 'awaiting_main_menu'
 
         elif current_state == 'conversation_over':
             lang = user_states[from_number]['language']
             send_whatsapp_audio(from_number, AUDIO_CLIPS[lang]['closing'])
-            send_whatsapp_message(from_number, MAIN_MENU_MSG)
             user_states[from_number]['state'] = 'awaiting_main_menu'
 
         # --- AUDIO DOUBT HANDLER ---
@@ -719,7 +717,7 @@ def chat():
     return jsonify(output), 200
 
 if __name__ == '__main__':
-    print("🚀 WhatsApp Bot Running...")
+    print(" WhatsApp Bot Running...")
     # Create static/audio directory if it doesn't exist
     if not os.path.exists('static/audio'):
         os.makedirs('static/audio')
