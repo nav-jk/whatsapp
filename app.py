@@ -704,7 +704,7 @@ def chat():
             'https://agrivoice-2-ws-2a-8000.ml.iit-ropar.truefoundry.cloud/chat',
             files=files,
             data=data,
-            timeout=60
+            timeout=(5, 30)  # 5 sec to connect, 30 sec to wait for response
         )
         resp.raise_for_status()
         output = resp.json()
